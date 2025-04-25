@@ -1,0 +1,56 @@
+version: '3.8'
+
+services:
+  sonarqube:
+    image: sonarqube:latest
+    ports:
+      - "9000:9000"
+    environment:
+      SONAR_JDBC_URL: jdbc:postgresql://db:5432/sonar
+      SONAR_JDBC_USERNAME: sonar
+      SONAR_JDBC_PASSWORD: sonar
+
+  db:
+    image: postgres:latest
+    environment:
+      POSTGRES_USER: sonar
+      POSTGRES_PASSWORD: sonar
+      POSTGRES_DB: sonar
+
+  selenium-hub:
+    image: selenium/hub:latest
+    ports:
+      - "4444:4444"
+
+  chrome:
+    image: selenium/node-chrome:latest
+    environment:
+      HUB_HOST: selenium-hub
+      HUB_PORT: 4444
+    depends_on:
+      - selenium-hub
+
+  web:
+    build:
+      context: ./src
+    depends_on:
+      - selenium-hub
+      - chrome
+
+  owasp-zap:
+    image: owasp/zap2docker-stable
+    command: zap.sh -daemon -host 0.0.0.0 -port 8080 -config api.disablekey=true
+    ports:
+      - "8080:8080"
+    depends_on:
+      - web
+
+  sonar-scanner:
+    image: sonarsource/sonar-scanner-cli:latest
+    environment:
+      SONAR_HOST_URL: http://sonarqube:9000
+      SONAR_LOGIN: ${SONAR_TOKEN}
+    volumes:
+      - .:/usr/src
+    depends_on:
+      - sonarqube
